@@ -1,85 +1,56 @@
-###################################PROJECT4 - COVID and Worldwide Measures#############################################
-#Ref: Dataset: https://www.kaggle.com/roche-data-science-coalition/uncover
-
-#Task: Analyzing worldwide measures implementations in tackling COVID
-#Import data
-
-measures <- read.csv("covid_measures.csv", stringsAsFactors=FALSE)
-cases <- read.csv("covid_cases.csv", stringsAsFactors=FALSE)
-countries<-read.csv("covid_countries.csv",stringsAsFactors = FALSE)
-#Change countries to vector
-country_vector<-as.vector(unlist(countries$country))
-rm(countries)
-
-nrow(measures)
-nrow(cases)
-
-str(measures)
-str(cases)
-
-#Change Korea DPR to North Korea in measures
-#change Korea Republic of to South Korea in measures
-#Change United states of America to US in measures
-#Change Viet nam to Vietnam in measures
-
-measures[measures$country=="Korea DPR","country"]<-rep("North Korea",4)
-measures[measures$country=="Korea Republic of","country"]<-rep("South Korea",18)
-measures[measures$country=="United States of America","country"]<-rep("US",49)
 
 
-#Filter out the countries not in countries dataframe
-cases<-cases[cases$Country.Region %in% country_vector,]
-measures<-measures[measures$country %in% country_vector,]
-
-
-#Delete rows where implemented date (in covid_measures) is blank)
-measures<-measures[measures$date_implemented!="",]
-
-#Change format of dates to PosixCt
-measures$measure_posixtime<-as.POSIXct(measures$date_implemented,format="%Y-%m-%d") #2020-03-01
-cases$confirmed_posixtime<-as.POSIXct(cases$Date,format="%m/%d/%Y") #1/22/2020
-
-#Deleting data after April 4th in covid_measures
-measures<-measures[measures$measure_posixtime<"2020-04-05",]
-
-#Let us assume US and China as a region in itself
-measures[measures$country=="US","region"]<-rep("US",48)
-measures[measures$country=="China","region"]<-rep("China",25)
+#Notes 
+#distinct(as.data.frame(measures$iso))
 
 library(dplyr)
-#Checking unique countries
+
+#Import data
+cases<-read.csv("johns-hopkins-covid-19-daily-dashboard-cases-over-time.csv",na.strings = FALSE)
+measures<-read.csv("acaps-covid-19-government-measures-dataset.csv",na.strings=FALSE)
+countries<-read.csv("countries.csv",na.strings=FALSE)
+
+#Filter countries in cases and measures
+cases<-cases[cases$iso3 %in% as.vector(countries$iso),]
+measures<-measures[measures$iso %in% as.vector(countries$iso),]
+
+#Change date to posix format
+cases$confirmed_posix<-as.POSIXct(cases$last_update,format="%Y-%m-%d")
+measures$measures_posix<-as.POSIXct(measures$date_implemented,format="%Y-%m-%d")
+
+#Checking distinct countries
 measures %>% distinct(measures$country, measures$region)
-cases %>% distinct(cases$Country.Region, cases$`measures$region`)
+cases%>%distinct(cases$country_region)
 
-#join with cases and measures to get region in cases
-cases<-merge(cases,measures %>% distinct(measures$country, measures$region),by.x=c("Country.Region"),by.y=c("measures$country"),all.x=TRUE)
+#Simple line graph of caonfirmed cases in USA
+ggplot(data=cases[cases$iso3=="USA" & cases$province_state!="",])+
+ geom_line(aes(confirmed_posix,y=deaths,color=province_state))
 
-cases<-cases[!is.na(cases$`measures$region`),] #Deleting from cases where region is NA because of no implementation date
+#Pivoting to get measures and category applied per confirmed_posix column
+measures<-measures %>% 
+  group_by(iso,measures_posix) %>% 
+  mutate(measures_derived = paste0(measure, collapse = "-"))
 
-#Renaming measures$region to region in cases
-cases$region<-"a"
-cases$region<-cases$`measures$region`
-cases$`measures$region`<-NULL
+measures<-measures %>% 
+  group_by(iso,measures_posix) %>% 
+  mutate(category_derived = paste0(category, collapse = "-"))
 
-#Region wise confirmed/deaths
-library(scales)
-ggplot(data=cases)+
-  geom_line(aes(x=confirmed_posixtime,y=Deaths,color=region))+
-  facet_grid(region~.,scales="free")
+#select columns from measures dataframe
+measures<-measures %>% select(country,iso,region,measures_posix,category_derived,measures_derived)
+
+measures<-measures %>% distinct() # will have pivoted measures
+
+#select columns of cases dataframe
+cases<-cases %>% select(country_region,confirmed,deaths,delta_confirmed,incident_rate,iso3,confirmed_posix)
+class(measures)
 
 #Join cases and measures
-cases_measures<-merge(cases,measures,by.x=c("Country.Region","confirmed_posixtime"),by.y=c("country","measure_posixtime"),all.x=TRUE)
+# merge(x=cases,y=measures,by.x=c("iso","confirmed_posix"),by.y=c("iso3","measure_posix"),all.x=TRUE)
+# ERROR: Error in fix.by(by.x, x) : 'by' must specify a uniquely valid column
+# Checked the class of both the tables cases was data frame and measures was- "grouped_df" "tbl_df"     "tbl"        "data.frame"
+# changed measures to data frame
+measures<-as.data.frame(measures)
+merge(x=cases,y=measures,by.x=c("iso","confirmed_posix"),by.y=c("iso3","measure_posix"),all.x=TRUE)
 
-#measures vs confirmed cases worldwide
-p<-ggplot(data=cases_measures[!is.na(cases_measures$category),])
-p+geom_bar(aes(x=confirmed_posixtime,fill=category))+
-  scale_x_datetime(labels = date_format("%b"))+
-  facet_grid(region.x~.,scales="free")
-head(cases_measures[cases_measures$Country.Region=="China",],200)
 
-#doubleYScale(measures_across_countries, cases_across_countries, add.ylab2 = TRUE)
 
-#plot(1:10)
-#par(new=TRUE)
-#plot(1:10, rnorm(10), xaxt="n", yaxt="n", xlab="", ylab="", type="l")
-#axis(side=4)
