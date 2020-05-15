@@ -50,22 +50,24 @@ ggplot(data=cases[cases$iso=="USA" & cases$province_state!="",])+
 library(dplyr)
 library(plyr)
 
+cases_posix_sum<-ddply(cases, .(confirmed_posix), summarise, posix_sum = sum(confirmed))
+
 # Method 1
 ggplot(data=ddply(cases, .(confirmed_posix), summarise, posix_sum = sum(confirmed)))+
   geom_line(aes(x=confirmed_posix,y=posix_sum))
 
 # Method2a
-cases_posix_sum<-cases %>% 
-  group_by(confirmed_posix) %>% 
-  mutate(confirmed_sum = sum(confirmed))
-cases_posix_sum<-cases_posix_sum %>% distinct(confirmed_posix,confirmed_sum)
-ggplot(data=cases_posix_sum)+geom_line(aes(x=confirmed_posix,y=confirmed_sum))
+#cases_posix_sum<-cases %>% 
+#  group_by(confirmed_posix) %>% 
+#  mutate(confirmed_sum = sum(confirmed))
+#cases_posix_sum<-cases_posix_sum %>% distinct(confirmed_posix,confirmed_sum)
+#ggplot(data=cases_posix_sum)+geom_line(aes(x=confirmed_posix,y=confirmed_sum))
 
 # Method 2b
-ggplot(data=(cases %>% 
-  group_by(confirmed_posix) %>% 
-  mutate(confirmed_sum = sum(confirmed)))%>% distinct(confirmed_posix,confirmed_sum))+
-  geom_line(aes(x=confirmed_posix,y=confirmed_sum))
+#ggplot(data=(cases %>% 
+#  group_by(confirmed_posix) %>% 
+#  mutate(confirmed_sum = sum(confirmed)))%>% distinct(confirmed_posix,confirmed_sum))+
+#  geom_line(aes(x=confirmed_posix,y=confirmed_sum))
 
 
 #select columns from measures and cases dataframes
@@ -89,7 +91,7 @@ cases[cases$iso=="RUS","region"]<-rep("Russian Federation",98)
 #aggregating cases by region and visualizing results
 cases_region<-ddply(cases, .(region,confirmed_posix), summarise, posix_sum = sum(confirmed))
 ggplot(data=cases_region)+
-  geom_point(aes(x=confirmed_posix,y=posix_sum,color=region))+
+  geom_line(aes(x=confirmed_posix,y=posix_sum,color=region))+
   facet_grid(region~.,scales="free")+
   ggtitle("regions over time")
 #+geom_smooth(aes(x=confirmed_posix,y=posix_sum))
